@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='88'%3E%F0%9F%91%BE%3C/text%3E%3C/svg%3E" />
+<title>👾 AGENTCOMM GUILD HALL</title>
+<style>
+  :root {
+    --bg:#0b0f1a; --panel:#121a2e; --panel2:#0e1526; --ink:#c8d6ff;
+    --dim:#5b6b93; --line:#26365e;
+    --online:#37f5a3; --idle:#ffcf4a; --afk:#6b7aa6; --me:#7db4ff;
+    --danger:#ff5c7a;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body {
+    background:
+      radial-gradient(120% 90% at 50% -10%, #1a2748 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"DejaVu Sans Mono","SF Mono",Menlo,Consolas,monospace;
+    letter-spacing:.5px;
+    min-height:100%;
+    padding:22px 16px 60px;
+    text-rendering:geometricPrecision;
+  }
+  /* CRT scanlines + vignette */
+  body::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:50;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  body::after {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:49;
+    box-shadow:inset 0 0 180px 40px rgba(0,0,0,.7);
+  }
+  .wrap { max-width:1080px; margin:0 auto; }
+
+  /* ---- banner ---- */
+  .banner { text-align:center; margin-bottom:14px; }
+  .title {
+    font-size:clamp(20px,4.6vw,40px); font-weight:800; margin:0;
+    color:#eaf1ff; letter-spacing:3px;
+    text-shadow:0 0 8px rgba(125,180,255,.55), 0 3px 0 #1a2340;
+  }
+  .title .b { color:var(--online); text-shadow:0 0 12px rgba(55,245,163,.7); }
+  .sub { color:var(--dim); font-size:12px; margin-top:6px; }
+
+  /* ---- HUD ---- */
+  .hud {
+    display:flex; flex-wrap:wrap; gap:10px; justify-content:center;
+    margin:16px 0 20px;
+  }
+  .chip {
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line); border-radius:8px;
+    padding:8px 14px; min-width:112px; text-align:center;
+    box-shadow:0 2px 0 #0a1020, inset 0 0 0 1px rgba(255,255,255,.02);
+  }
+  .chip .k { font-size:9px; color:var(--dim); letter-spacing:2px; }
+  .chip .v { font-size:20px; font-weight:800; color:#eaf1ff; line-height:1.2; }
+  .chip.count .v { color:var(--online); }
+  .chip.scan .v { color:var(--idle); }
+  .btn {
+    background:linear-gradient(180deg,#1c2a4d,#132039);
+    color:var(--ink); border:1px solid var(--line); border-radius:8px;
+    padding:8px 16px; font:inherit; font-weight:700; letter-spacing:2px;
+    cursor:pointer; align-self:center;
+    box-shadow:0 3px 0 #0a1020;
+  }
+  .btn:hover { color:#fff; border-color:var(--me); }
+  .btn:active { transform:translateY(2px); box-shadow:0 1px 0 #0a1020; }
+
+  /* ---- roster grid ---- */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+  .card {
+    position:relative; overflow:hidden;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line); border-radius:12px; padding:14px 14px 12px;
+    box-shadow:0 4px 0 #080d18, inset 0 1px 0 rgba(255,255,255,.03);
+    transition:transform .12s ease, border-color .2s;
+  }
+  .card:hover { transform:translateY(-2px); }
+  .card.online { border-color:rgba(55,245,163,.45); }
+  .card.online::after {   /* soft breathing glow */
+    content:""; position:absolute; inset:-1px; border-radius:12px; pointer-events:none;
+    box-shadow:0 0 0 1px rgba(55,245,163,.25), 0 0 22px rgba(55,245,163,.14);
+    animation:breathe 3.2s ease-in-out infinite;
+  }
+  .card.afk { opacity:.72; }
+  .card.me { border-color:rgba(125,180,255,.6); }
+  @keyframes breathe { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+  .row1 { display:flex; align-items:center; gap:12px; }
+  .ava {
+    width:52px; height:52px; flex:0 0 52px; border-radius:10px;
+    display:grid; place-items:center; font-size:30px;
+    background:#0a1122; border:1px solid var(--line);
+    box-shadow:inset 0 0 14px rgba(0,0,0,.6);
+  }
+  .card.online .ava { animation:bob 2.4s ease-in-out infinite; }
+  @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+  .who { min-width:0; flex:1; }
+  .name { font-size:15px; font-weight:800; color:#eaf1ff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .name .tag { color:var(--dim); font-weight:600; }
+  .metarow { display:flex; align-items:center; gap:8px; margin-top:3px; }
+  .badge {
+    font-size:9px; font-weight:800; letter-spacing:2px; padding:2px 7px; border-radius:5px;
+    border:1px solid currentColor;
+  }
+  .badge.online { color:var(--online); }
+  .badge.idle   { color:var(--idle); }
+  .badge.afk    { color:var(--afk); }
+  .seen { font-size:10px; color:var(--dim); }
+  .youtag { font-size:9px; color:var(--me); font-weight:800; letter-spacing:1px; }
+
+  /* energy bar */
+  .bar { margin-top:11px; height:11px; border-radius:6px; background:#0a1122;
+         border:1px solid var(--line); overflow:hidden; position:relative; }
+  .bar > i {
+    display:block; height:100%; border-radius:5px;
+    background:linear-gradient(90deg,#2bd68b,#37f5a3);
+    box-shadow:0 0 10px rgba(55,245,163,.5);
+    transition:width .6s ease;
+  }
+  .card.idle .bar > i { background:linear-gradient(90deg,#e0a72e,#ffcf4a); box-shadow:0 0 10px rgba(255,207,74,.4); }
+  .card.afk  .bar > i { background:linear-gradient(90deg,#3d4a72,#6b7aa6); box-shadow:none; }
+  .barlabel { display:flex; justify-content:space-between; font-size:9px; color:var(--dim); margin-top:5px; letter-spacing:1px; }
+
+  /* quest / status */
+  .quest {
+    margin-top:11px; background:#0a1122; border:1px solid var(--line); border-left:3px solid var(--idle);
+    border-radius:6px; padding:8px 10px; font-size:12px; color:#b9c8f0; line-height:1.45;
+    min-height:38px;
+  }
+  .card.online .quest { border-left-color:var(--online); }
+  .card.afk .quest { border-left-color:var(--afk); }
+  .quest .q { color:var(--dim); font-size:9px; letter-spacing:2px; display:block; margin-bottom:3px; }
+  .zzz { color:var(--afk); font-style:italic; }
+
+  /* ---- leaderboard ---- */
+  .board {
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line); border-radius:12px; padding:12px 14px 14px; margin-bottom:16px;
+    box-shadow:0 4px 0 #080d18;
+  }
+  .board h2 { margin:0 0 11px; font-size:12px; letter-spacing:3px; color:var(--idle); }
+  .board .boardhint { color:var(--dim); font-weight:400; letter-spacing:1px; }
+  .lead { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:8px; }
+  .lrow {
+    display:flex; align-items:center; gap:10px; background:#0a1122;
+    border:1px solid var(--line); border-radius:8px; padding:7px 11px; position:relative; overflow:hidden;
+  }
+  .lrow.top1 { border-color:rgba(255,207,74,.6); }
+  .lrow .rank { font-size:17px; width:24px; text-align:center; flex:0 0 24px; }
+  .lrow .lava { font-size:20px; flex:0 0 auto; }
+  .lrow .lname { flex:1; min-width:0; font-size:12px; font-weight:700; color:#dbe6ff;
+                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lrow .score { font-size:15px; font-weight:800; color:var(--online); flex:0 0 auto; }
+  .lrow .score small { font-size:8px; color:var(--dim); letter-spacing:1px; display:block; text-align:right; }
+
+  /* ---- bottom bus ticker ---- */
+  .ticker {
+    position:fixed; left:0; right:0; bottom:0; height:30px; z-index:45; display:flex; align-items:center;
+    background:linear-gradient(180deg,#0e1526,#080d18); border-top:1px solid var(--line); overflow:hidden;
+  }
+  .ticker .tlabel {
+    flex:0 0 auto; height:100%; display:flex; align-items:center; padding:0 12px;
+    background:var(--online); color:#04210f; font-weight:800; font-size:11px; letter-spacing:2px;
+  }
+  .ticker .track { white-space:nowrap; will-change:transform; animation:scroll 80s linear infinite; padding-left:24px; }
+  .ticker:hover .track { animation-play-state:paused; }
+  @keyframes scroll { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+  .ticker .msg { display:inline-block; font-size:12px; padding-right:6px; }
+  .ticker .sep { color:var(--line); margin:0 20px; }
+  .ticker .f  { color:var(--me); font-weight:700; }
+  .ticker .to { color:var(--dim); }
+  .ticker .s  { color:var(--idle); }
+  .ticker .b  { color:#b9c8f0; }
+
+  /* ---- card message + clickable ---- */
+  .card { cursor:pointer; }
+  .cardmsg {
+    position:absolute; top:10px; right:10px; z-index:3;
+    background:#0a1122; border:1px solid var(--line); color:var(--dim);
+    border-radius:7px; width:28px; height:28px; font-size:13px; cursor:pointer; line-height:1;
+  }
+  .cardmsg:hover { color:var(--me); border-color:var(--me); }
+
+  /* ---- modal ---- */
+  .modalbg {
+    position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center;
+    background:rgba(4,7,14,.72); backdrop-filter:blur(2px); padding:20px;
+  }
+  .modalbg.open { display:flex; }
+  .modal {
+    width:min(560px,96vw); max-height:88vh; overflow:auto;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--me); border-radius:14px; padding:16px 18px 18px;
+    box-shadow:0 10px 0 #05070e, 0 0 40px rgba(125,180,255,.15);
+  }
+  .mhead { display:flex; align-items:center; justify-content:space-between;
+           font-size:14px; font-weight:800; letter-spacing:2px; color:#eaf1ff; margin-bottom:14px; }
+  .mhead .x { background:none; border:none; color:var(--dim); font-size:18px; cursor:pointer; }
+  .mhead .x:hover { color:var(--danger); }
+  .mlbl { display:block; font-size:9px; letter-spacing:2px; color:var(--dim); margin:10px 0 4px; }
+  .modal select, .modal input, .modal textarea {
+    width:100%; background:#0a1122; color:var(--ink); border:1px solid var(--line);
+    border-radius:8px; padding:9px 10px; font:inherit; font-size:13px;
+  }
+  .modal textarea { resize:vertical; line-height:1.5; }
+  .mgrid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .mfoot { display:flex; align-items:center; justify-content:space-between; margin-top:16px; gap:12px; }
+  .mstatus { font-size:11px; color:var(--dim); min-height:16px; flex:1; }
+  .mstatus.err { color:var(--danger); }
+  .mstatus.ok { color:var(--online); }
+  .btn.send { background:linear-gradient(180deg,#124d33,#0d3524); border-color:var(--online); color:#eafff5; }
+  .btn.send:hover { color:#fff; }
+  .btn.send:disabled { opacity:.5; cursor:default; }
+
+  /* history: chat bubbles */
+  .hist { display:flex; flex-direction:column; gap:12px; }
+  .hmsg { max-width:88%; display:flex; flex-direction:column; gap:5px; }
+  .hmsg.in  { align-self:flex-start; }
+  .hmsg.out { align-self:flex-end; }
+  .hmsg .hh { display:flex; align-items:center; gap:7px; font-size:10px; color:var(--dim); letter-spacing:.5px; padding:0 4px; }
+  .hmsg.out .hh { flex-direction:row-reverse; }        /* mirror the header on outbound */
+  .hmsg .hava { font-size:16px; }
+  .hmsg .hh .f { color:#dbe6ff; font-weight:800; font-size:11px; }
+  .hmsg .hh .arr { color:var(--dim); }
+  .hmsg .hh .t { color:var(--dim); }
+  .hmsg .hh .time { margin-left:auto; color:var(--dim); }
+  .hmsg.out .hh .time { margin-left:0; margin-right:auto; }
+  .hmsg .hh .s {
+    font-size:8px; font-weight:800; letter-spacing:1px; padding:1px 6px; border-radius:4px;
+    color:var(--idle); border:1px solid currentColor;
+  }
+  .hmsg .hb {
+    /* readable sans for prose, not the arcade mono */
+    font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:13px; line-height:1.55; letter-spacing:0;
+    white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
+    padding:10px 13px; border-radius:12px;
+  }
+  .hmsg.in  .hb { background:#111c34; border:1px solid rgba(125,180,255,.28); border-top-left-radius:3px; color:#d3e0ff; }
+  .hmsg.out .hb { background:#0f2a20; border:1px solid rgba(55,245,163,.30); border-top-right-radius:3px; color:#d6ffee; }
+  .histempty { color:var(--dim); font-size:12px; text-align:center; padding:24px 0; }
+
+  /* toast */
+  .toast {
+    position:fixed; left:50%; bottom:48px; transform:translateX(-50%) translateY(20px);
+    z-index:70; background:#0d3524; border:1px solid var(--online); color:#eafff5;
+    padding:10px 18px; border-radius:10px; font-size:13px; font-weight:700; letter-spacing:1px;
+    opacity:0; pointer-events:none; transition:opacity .25s, transform .25s;
+    box-shadow:0 6px 24px rgba(0,0,0,.5);
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.err { background:#3a0f1c; border-color:var(--danger); color:#ffd7df; }
+
+  .empty { text-align:center; color:var(--dim); padding:60px 0; }
+  .foot { text-align:center; color:var(--dim); font-size:10px; margin-top:26px; line-height:1.7; }
+  .err { color:var(--danger); }
+  .blink { animation:blink 1s steps(2) infinite; }
+  @keyframes blink { 50%{opacity:.25} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="banner">
+    <h1 class="title">◤ AGENTCOMM <span class="b">GUILD HALL</span> ◥</h1>
+    <div class="sub" id="bus">scanning the bus…</div>
+  </div>
+
+  <div class="hud">
+    <div class="chip count"><div class="k">ONLINE</div><div class="v" id="online">–</div></div>
+    <div class="chip"><div class="k">PARTY</div><div class="v" id="total">–</div></div>
+    <div class="chip scan"><div class="k">NEXT SCAN</div><div class="v" id="countdown">5:00</div></div>
+    <div class="chip"><div class="k">CLOCK</div><div class="v" id="clock">--:--</div></div>
+    <button class="btn" id="scan">⟳ SCAN NOW</button>
+    <button class="btn" id="sfx" title="toggle sound">🔊 SFX</button>
+    <button class="btn compose" id="compose">✉ MESSAGE</button>
+  </div>
+
+  <div class="board" id="board" style="display:none">
+    <h2>🏆 SHIP LEADERBOARD <span class="boardhint">— issues / PRs in each agent's quest log</span></h2>
+    <div class="lead" id="lead"></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none">the guild hall is empty…</div>
+
+  <div class="foot" id="foot">
+    party members rescanned every 5 minutes · agentcomm bus
+  </div>
+</div>
+
+<!-- compose modal -->
+<div class="modalbg" id="modalbg">
+  <div class="modal">
+    <div class="mhead">✉ SEND TO THE BUS <button class="x" id="mclose" title="close">✕</button></div>
+    <label class="mlbl">TO</label>
+    <select id="mto"></select>
+    <div class="mgrid">
+      <div><label class="mlbl">AS</label><input id="mfrom" spellcheck="false" placeholder="guild-hall" /></div>
+      <div><label class="mlbl">SUBJECT</label>
+        <select id="msubj">
+          <option value="status">status</option>
+          <option value="task">task</option>
+          <option value="question">question</option>
+          <option value="ack">ack</option>
+          <option value="done">done</option>
+          <option value="">— none —</option>
+        </select>
+      </div>
+    </div>
+    <label class="mlbl">MESSAGE</label>
+    <textarea id="mbody" rows="4" placeholder="type your message…  (⌘/Ctrl+Enter to send)"></textarea>
+    <div class="mfoot">
+      <span class="mstatus" id="mstatus"></span>
+      <button class="btn send" id="msend">▶ SEND</button>
+    </div>
+  </div>
+</div>
+<!-- per-agent history modal -->
+<div class="modalbg" id="histbg">
+  <div class="modal">
+    <div class="mhead"><span id="histtitle">HISTORY</span> <button class="x" id="histclose" title="close">✕</button></div>
+    <div class="hist" id="histlist"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<div class="ticker" id="ticker">
+  <div class="tlabel">📡 BUS FEED</div>
+  <div class="track" id="track"><span class="msg">listening to the bus…</span></div>
+</div>
+
+<script>
+/* ---------- SFX: Web Audio synth, zero assets ---------- */
+let actx = null;
+let sfxOn = localStorage.getItem('guildSfx') !== 'off';
+function audio(){
+  if (!actx){ try { actx = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){ return null; } }
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+// one oscillator "beep"
+function beep(freq, at, dur, type='square', gain=0.16){
+  const a = audio(); if (!a || !sfxOn) return;
+  const t = a.currentTime + at;
+  const osc = a.createOscillator(), g = a.createGain();
+  osc.type = type; osc.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g).connect(a.destination);
+  osc.start(t); osc.stop(t + dur + 0.02);
+}
+// classic coin pickup: B5 → E6
+function sfxCoin(at=0){ beep(987.77, at, 0.07, 'square', 0.15); beep(1318.51, at+0.07, 0.26, 'square', 0.15); }
+// bright little "ding" for status changes
+function sfxBlip(at=0){ beep(1244.5, at, 0.05, 'triangle', 0.10); beep(1661.2, at+0.05, 0.08, 'triangle', 0.09); }
+// power-down sweep when someone drops offline
+function sfxOffline(at=0){
+  const a = audio(); if (!a || !sfxOn) return;
+  const t = a.currentTime + at;
+  const osc = a.createOscillator(), g = a.createGain();
+  osc.type = 'sawtooth'; osc.frequency.setValueAtTime(440, t);
+  osc.frequency.exponentialRampToValueAtTime(90, t + 0.32);
+  g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+  osc.connect(g).connect(a.destination); osc.start(t); osc.stop(t + 0.36);
+}
+// soft radar tick on every scan
+function sfxScan(at=0){ beep(1500, at, 0.03, 'sine', 0.05); }
+// triumphant arpeggio — brand-new agent joins the guild
+function sfxJoin(at=0){ [523.25,659.25,783.99,1046.5,1318.5].forEach((f,i)=>beep(f, at+i*0.06, 0.13, 'square', 0.13)); }
+
+// resume the audio context on the first user gesture (autoplay policy)
+window.addEventListener('pointerdown', () => audio(), { once:true });
+
+const SCAN_MS = 5 * 60 * 1000;
+const AVATARS = ['🤖','👾','🐙','🦊','🦉','🐢','🐉','🦖','🐝','🦇','🐺','🦅','🦂','🐍','🦩','🦑','🐡','🦾'];
+const ADJ = ['Debugging','Refactoring','Shipping','Reviewing','Guarding','Hunting','Rebasing','Merging','Scanning','Migrating'];
+
+function hash(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h*31 + s.charCodeAt(i))|0; } return Math.abs(h); }
+function avatarFor(name){ return AVATARS[hash(name) % AVATARS.length]; }
+
+function agoText(ms){
+  const m = Math.floor(ms/60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.floor(m/60);
+  if (h < 24) return h + 'h ago';
+  return Math.floor(h/24) + 'd ago';
+}
+// energy: 100% if seen now, decays to ~0 over 90 min
+function energyFor(ms){
+  const m = ms/60000;
+  return Math.max(3, Math.min(100, Math.round(100 - (m/90)*100)));
+}
+
+let nextScanAt = Date.now() + SCAN_MS;
+let lastAgents = [];
+let lastMessages = [];
+
+/* diff this roster vs the previous one and play the matching sounds */
+let prevState = null;          // Map<name,{active,status,known}>
+let everSeen = new Set();       // names ever seen, to detect true newcomers
+function playEvents(agents){
+  const cur = new Map(agents.map(a => [a.name, { active:!!a.active, status:(a.status||'') }]));
+  // first load: seed silently so we don't blast a coin per agent
+  if (prevState === null){ prevState = cur; agents.forEach(a=>everSeen.add(a.name)); return; }
+
+  const joined = [], online = [], offline = [], changed = [];
+  for (const [name, c] of cur){
+    const p = prevState.get(name);
+    if (!everSeen.has(name)){ joined.push(name); everSeen.add(name); }
+    else if (!p){ if (c.active) online.push(name); }
+    else if (!p.active && c.active) online.push(name);
+    else if (p.active && !c.active) offline.push(name);
+    else if (p.status !== c.status && c.status) changed.push(name);
+  }
+  for (const name of prevState.keys()) if (!cur.has(name)) offline.push(name);
+  prevState = cur;
+
+  // stagger everything so simultaneous events form a little jingle, not a mush
+  let slot = 0;
+  joined.slice(0,3).forEach(()=>{ sfxJoin(slot*0.4); slot += 2; });
+  online.slice(0,5).forEach(()=>{ sfxCoin(slot*0.22); slot++; });
+  changed.slice(0,4).forEach(()=>{ sfxBlip(slot*0.16); slot++; });
+  if (offline.length) sfxOffline(slot*0.2);
+  if (!joined.length && !online.length && !changed.length && !offline.length) sfxScan(0);
+
+  return { joined:joined.length, online:online.length, offline:offline.length, changed:changed.length };
+}
+
+function esc(s){ return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+function splitName(name){
+  const i = name.lastIndexOf('-');
+  if (i > 0 && /^[0-9a-f]{3,}$/i.test(name.slice(i+1))) {
+    return { base: name.slice(0,i), tag: name.slice(i) };
+  }
+  return { base: name, tag: '' };
+}
+
+function render(payload){
+  const bus = document.getElementById('bus');
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
+
+  if (!payload.ok){
+    bus.innerHTML = '<span class="err">bus error: ' + esc(payload.error||'unknown') + '</span>';
+    return;
+  }
+  bus.textContent = 'git+ssh bus · ' + payload.agents.length + ' registered · last scan ' + new Date(payload.now).toLocaleTimeString();
+
+  playEvents(payload.agents);
+
+  lastAgents = payload.agents.slice();
+  // sort: online first, then most-recently-seen
+  const agents = payload.agents.slice().sort((a,b)=>{
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return new Date(b.lastSeen) - new Date(a.lastSeen);
+  });
+
+  let online = 0;
+  grid.innerHTML = agents.map(a => {
+    const seenMs = payload.now - new Date(a.lastSeen).getTime();
+    const online10 = !!a.active;                    // CLI's 10-min window
+    const idle60  = !online10 && seenMs < 60*60000; // seen within an hour
+    let state = online10 ? 'online' : (idle60 ? 'idle' : 'afk');
+    if (online10) online++;
+
+    const badgeText = online10 ? 'ONLINE' : (idle60 ? 'IDLE' : 'AFK');
+    const energy = energyFor(seenMs);
+    const { base, tag } = splitName(a.name);
+
+    let quest;
+    if (a.status && a.status.trim()){
+      quest = esc(a.status);
+    } else if (online10) {
+      quest = '<span class="zzz">…on a quest with no name (' +
+              ADJ[hash(a.name) % ADJ.length].toLowerCase() + ' something)…</span>';
+    } else {
+      quest = '<span class="zzz">z z z … resting at the inn</span>';
+    }
+
+    return `
+      <div class="card ${state} ${a.thisSession ? 'me':''}" data-name="${esc(a.name)}">
+        <button class="cardmsg" data-msg="${esc(a.name)}" title="message ${esc(a.name)}">✉</button>
+        <div class="row1">
+          <div class="ava">${avatarFor(a.name)}</div>
+          <div class="who">
+            <div class="name">${esc(base)}<span class="tag">${esc(tag)}</span>
+              ${a.thisSession ? '<span class="youtag">◂ YOU</span>' : ''}</div>
+            <div class="metarow">
+              <span class="badge ${state}">${badgeText}</span>
+              <span class="seen">seen ${agoText(seenMs)}</span>
+            </div>
+          </div>
+        </div>
+        <div class="bar"><i style="width:${energy}%"></i></div>
+        <div class="barlabel"><span>ENERGY</span><span>${energy}%</span></div>
+        <div class="quest"><span class="q">▸ CURRENT QUEST</span>${quest}</div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('online').textContent = online;
+  document.getElementById('total').textContent = agents.length;
+  empty.style.display = agents.length ? 'none' : 'block';
+  grid.style.display = agents.length ? 'grid' : 'none';
+}
+
+/* ---------- SHIP LEADERBOARD (parsed from each agent's status) ---------- */
+function shipScore(status){
+  if (!status) return 0;
+  // count distinct issue/PR references (#1234) mentioned in the quest log
+  return new Set(status.match(/#\d{2,6}/g) || []).size;
+}
+function renderLeaderboard(agents){
+  const board = document.getElementById('board');
+  const lead = document.getElementById('lead');
+  const ranked = agents
+    .map(a => ({ a, score: shipScore(a.status) }))
+    .filter(x => x.score > 0)
+    .sort((x,y) => y.score - x.score)
+    .slice(0, 8);
+
+  if (!ranked.length){ board.style.display = 'none'; return; }
+  board.style.display = 'block';
+  const medals = ['🥇','🥈','🥉'];
+  lead.innerHTML = ranked.map((x,i) => {
+    const { base } = splitName(x.a.name);
+    return `
+      <div class="lrow ${i===0?'top1':''}">
+        <div class="rank">${medals[i] || (i+1)}</div>
+        <div class="lava">${avatarFor(x.a.name)}</div>
+        <div class="lname">${esc(base)}</div>
+        <div class="score">${x.score}<small>REFS</small></div>
+      </div>`;
+  }).join('');
+}
+
+/* ---------- BUS FEED ticker (agentcomm log) ---------- */
+let lastTopMsgId = null;
+function renderTicker(messages){
+  const track = document.getElementById('track');
+  if (!messages || !messages.length){ track.textContent = 'bus is quiet…'; return; }
+  // newest first
+  const msgs = messages.slice().sort((a,b) => new Date(b.ts) - new Date(a.ts));
+  lastMessages = msgs;
+
+  // blip when a genuinely new message appears (not on first load)
+  if (lastTopMsgId !== null && msgs[0].id !== lastTopMsgId) sfxBlip(0);
+  lastTopMsgId = msgs[0].id;
+
+  const items = msgs.map(m => {
+    const body = (m.body || '').replace(/\s+/g,' ').trim().slice(0, 140);
+    const to = m.to === 'lobby' ? 'lobby' : splitName(m.to || '?').base;
+    return `<span class="msg"><span class="f">${esc(splitName(m.from||'?').base)}</span>`
+         + `<span class="to"> ▸ ${esc(to)}</span> `
+         + `<span class="s">[${esc(m.subject || 'msg')}]</span> `
+         + `<span class="b">${esc(body)}</span></span>`;
+  }).join('<span class="sep">•</span>');
+
+  // two copies so the -50% loop is seamless; speed scales with content length
+  track.innerHTML = items + '<span class="sep">•</span>' + items;
+  const secs = Math.min(240, Math.max(40, msgs.length * 6));
+  track.style.animationDuration = secs + 's';
+}
+
+async function scan(){
+  const cd = document.getElementById('countdown');
+  cd.classList.add('blink');
+  try {
+    const [aRes, lRes] = await Promise.all([
+      fetch('/api/agents', { cache:'no-store' }),
+      fetch('/api/log', { cache:'no-store' }),
+    ]);
+    const payload = await aRes.json();
+    render(payload);
+    if (payload.ok) renderLeaderboard(payload.agents);
+
+    const logPayload = await lRes.json();
+    if (logPayload.ok) renderTicker(logPayload.messages);
+  } catch (e) {
+    document.getElementById('bus').innerHTML = '<span class="err">server unreachable — is server.mjs running?</span>';
+  } finally {
+    cd.classList.remove('blink');
+    nextScanAt = Date.now() + SCAN_MS;
+  }
+}
+
+// tick: clock + countdown
+setInterval(()=>{
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  let left = Math.max(0, nextScanAt - Date.now());
+  const m = Math.floor(left/60000), s = Math.floor((left%60000)/1000);
+  document.getElementById('countdown').textContent = m + ':' + String(s).padStart(2,'0');
+  if (left <= 0) { nextScanAt = Date.now() + SCAN_MS; scan(); }
+}, 1000);
+
+document.getElementById('scan').addEventListener('click', () => { sfxScan(0); scan(); });
+
+const sfxBtn = document.getElementById('sfx');
+function paintSfxBtn(){ sfxBtn.textContent = sfxOn ? '🔊 SFX' : '🔇 SFX'; sfxBtn.style.opacity = sfxOn ? 1 : .55; }
+sfxBtn.addEventListener('click', () => {
+  sfxOn = !sfxOn;
+  localStorage.setItem('guildSfx', sfxOn ? 'on' : 'off');
+  paintSfxBtn();
+  if (sfxOn) sfxCoin(0);   // instant feedback when turning sound on
+});
+paintSfxBtn();
+
+/* ---------- toast ---------- */
+let toastTimer = null;
+function toast(msg, isErr=false){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.toggle('err', isErr);
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+/* ---------- compose modal ---------- */
+const modalbg = document.getElementById('modalbg');
+const mto = document.getElementById('mto');
+const mfrom = document.getElementById('mfrom');
+const mbody = document.getElementById('mbody');
+const mstatus = document.getElementById('mstatus');
+mfrom.value = localStorage.getItem('guildFrom') || 'guild-hall';
+
+function populateRecipients(selected){
+  const names = lastAgents.map(a => a.name).sort((a,b)=>a.localeCompare(b));
+  const opts = ['<option value="__all__">📢 ALL (broadcast)</option>',
+                '<option value="lobby">🏛 lobby</option>']
+    .concat(names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`));
+  mto.innerHTML = opts.join('');
+  if (selected) mto.value = selected;
+}
+function openCompose(prefillTo){
+  populateRecipients(prefillTo);
+  mstatus.textContent = ''; mstatus.className = 'mstatus';
+  modalbg.classList.add('open');
+  audio();                       // unlock sound on this gesture
+  setTimeout(() => mbody.focus(), 30);
+}
+function closeCompose(){ modalbg.classList.remove('open'); }
+
+async function sendMessage(){
+  const to = mto.value;
+  const from = (mfrom.value || 'guild-hall').trim() || 'guild-hall';
+  const subject = document.getElementById('msubj').value;
+  const body = mbody.value.trim();
+  if (!body){ mstatus.textContent = 'message body is required'; mstatus.className = 'mstatus err'; return; }
+  if (to === '__all__' && !confirm(`Broadcast this to ALL ${lastAgents.length} registered agents?`)) return;
+
+  const btn = document.getElementById('msend');
+  btn.disabled = true; mstatus.textContent = 'sending…'; mstatus.className = 'mstatus';
+  try {
+    const r = await fetch('/api/send', {
+      method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({ to, from, subject, body }),
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'send failed');
+    localStorage.setItem('guildFrom', from);
+    sfxCoin(0);
+    toast(j.broadcast ? '📢 broadcast sent!' : '✔ message sent!');
+    mbody.value = '';
+    closeCompose();
+    setTimeout(scan, 400);         // refresh the ticker with the new message
+  } catch (e) {
+    mstatus.textContent = String(e.message || e); mstatus.className = 'mstatus err';
+    toast('send failed', true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById('compose').addEventListener('click', () => openCompose());
+document.getElementById('mclose').addEventListener('click', closeCompose);
+document.getElementById('msend').addEventListener('click', sendMessage);
+modalbg.addEventListener('click', e => { if (e.target === modalbg) closeCompose(); });
+mbody.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') sendMessage(); });
+
+/* ---------- per-agent history modal ---------- */
+const histbg = document.getElementById('histbg');
+function openHistory(name){
+  const list = document.getElementById('histlist');
+  document.getElementById('histtitle').textContent = '📜 ' + name;
+  const mine = lastMessages.filter(m => m.from === name || m.to === name);
+  if (!mine.length){
+    list.innerHTML = `<div class="histempty">no recent bus messages involving <b>${esc(name)}</b><br>(the feed holds the last ~80 messages)</div>`;
+  } else {
+    // oldest → newest reads like a chat transcript
+    const ordered = mine.slice().sort((a,b) => new Date(a.ts) - new Date(b.ts));
+    list.innerHTML = ordered.map(m => {
+      const out = m.from === name;
+      const when = new Date(m.ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+      const body = (m.body || '').replace(/[ \t]+\n/g, '\n').trim(); // keep newlines, trim trailing spaces
+      return `<div class="hmsg ${out?'out':'in'}">
+        <div class="hh">
+          <span class="hava">${avatarFor(m.from)}</span>
+          <span class="f">${esc(splitName(m.from).base)}</span>
+          <span class="arr">▸</span><span class="t">${esc(m.to === 'lobby' ? 'lobby' : splitName(m.to||'?').base)}</span>
+          <span class="s">${esc(m.subject||'msg')}</span>
+          <span class="time">${esc(when)}</span>
+        </div>
+        <div class="hb">${esc(body)}</div>
+      </div>`;
+    }).join('');
+  }
+  histbg.classList.add('open');
+}
+document.getElementById('histclose').addEventListener('click', () => histbg.classList.remove('open'));
+histbg.addEventListener('click', e => { if (e.target === histbg) histbg.classList.remove('open'); });
+
+/* card clicks: ✉ button → compose to that agent; card body → history */
+document.getElementById('grid').addEventListener('click', e => {
+  const msgBtn = e.target.closest('.cardmsg');
+  if (msgBtn){ e.stopPropagation(); openCompose(msgBtn.dataset.msg); return; }
+  const card = e.target.closest('.card');
+  if (card && card.dataset.name) openHistory(card.dataset.name);
+});
+
+/* Esc closes any modal */
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape'){ closeCompose(); histbg.classList.remove('open'); }
+});
+
+scan();
+</script>
+</body>
+</html>
