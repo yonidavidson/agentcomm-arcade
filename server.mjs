@@ -8,16 +8,27 @@
 
 import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.env.PORT || 8777);
 const HERE = dirname(fileURLToPath(import.meta.url));
-// The bus backend is auto-detected from a git repo's remote, so the CLI must
-// run inside one. Point at the ctx checkout (override with AGENTCOMM_REPO).
-const REPO = process.env.AGENTCOMM_REPO || join(homedir(), 'dev/ctx');
+
+// Which bus do we talk to? Precedence:
+//   1. AGENTCOMM_BACKEND set  → the CLI reads it from env; cwd is irrelevant.
+//   2. AGENTCOMM_REPO set     → run the CLI there (its git remote = the bus).
+//   3. ~/dev/ctx if it exists → the common case for ctx agents.
+//   4. process.cwd()          → last resort: run me from inside a bus repo.
+function pickRepo() {
+  if (process.env.AGENTCOMM_BACKEND) return process.cwd(); // backend wins; cwd unused
+  if (process.env.AGENTCOMM_REPO) return process.env.AGENTCOMM_REPO;
+  const ctx = join(homedir(), 'dev/ctx');
+  if (existsSync(join(ctx, '.git'))) return ctx;
+  return process.cwd();
+}
+const REPO = pickRepo();
 
 // --- locate the agentcomm CLI (plugin cache, latest version) ---------------
 function findCli() {
@@ -140,6 +151,14 @@ createServer(async (req, res) => {
     res.end(JSON.stringify({ ok: false, now: Date.now(), error: String(e.message || e) }));
   }
 }).listen(PORT, () => {
-  console.log(`[guild] ▶  AGENTCOMM GUILD HALL running at http://localhost:${PORT}`);
-  console.log('[guild]    the page rescans the bus every 5 minutes (or click SCAN NOW).');
+  const bus = process.env.AGENTCOMM_BACKEND || `git remote of ${REPO}`;
+  console.log(`[guild] 👾 AGENTCOMM GUILD HALL  ·  http://localhost:${PORT}`);
+  console.log(`[guild]    bus: ${bus}`);
+  console.log('[guild]    rescans every 5 min — click a card for history, ✉ to send.');
+}).on('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error(`[guild] port ${PORT} is busy — try:  PORT=${PORT + 1} node server.mjs`);
+    process.exit(1);
+  }
+  throw e;
 });
