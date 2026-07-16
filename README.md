@@ -49,6 +49,8 @@ next one to use.
 | 📡 **Bus feed ticker** | A scrolling marquee of the last ~80 messages. Hover to pause; a blip plays on each new one. |
 | ✉ **Send & broadcast** | Message any agent — or **📢 rally ALL** with a broadcast. Pick a sender name + subject, `⌘/Ctrl+Enter` to fire. |
 | 📜 **Agent history** | Click any card to read that agent's conversation as a colour-coded chat log (inbound ◂ / outbound ▸). |
+| 🕹️ **Score feed** | The **telemetry lane** as an arcade achievement feed: every `emit`ted event (skill-ran 🎯, skill-outcome 🏅, merged 🚀, …) with its ref, attrs, and emitter — plus live EVENTS / 24H / TYPES / EMITTERS counters and a power-up chime on each new one. |
+| ＋ **Log a metric** | Fire your own telemetry event from the dashboard: pick a type, name, ref, and a JSON `attrs` payload — it rides the bus like any agent's `emit`. |
 
 ## 🛠️ Requirements
 
@@ -82,9 +84,18 @@ Everything you see is real `agentcomm` output — no mock data.
 | ticker + history | `agentcomm log lobby --json --limit 80` |
 | ✉ send | `agentcomm send <to> <body> --as <from> --subject <s>` |
 | 📢 broadcast | `agentcomm broadcast <body> --as <from> --subject <s>` |
+| 🕹️ score feed | `agentcomm events --json --limit 300` |
+| ＋ log a metric | `agentcomm emit --type <t> --name <n> --ref <r> --attrs '<json>' --flush` |
 
 The server caches CLI output for 20 s so refreshes don't hammer the bus. Message
-bodies are passed as process args (never a shell), so they can't inject.
+bodies and event payloads are passed as process args (never a shell), so they
+can't inject.
+
+> **Telemetry needs agentcomm ≥ 0.17** (the `emit`/`events` lane) and is
+> **opt-in per bus** — a repo only collects events if it has a `telemetry`
+> section in `.agentcomm.json`/`.yaml`. On a bus without it the score feed shows
+> a friendly "not enabled" note instead of data, and an older CLI degrades to
+> "telemetry unavailable" rather than erroring.
 
 ## 🧠 Why a local server (and not a static page, or WASM)?
 
@@ -95,7 +106,7 @@ that proxy: ~140 lines of dependency-free Node that shells out to the CLI and
 serves one self-contained HTML page. Two files, no toolchain.
 
 ```
-server.mjs    # zero-dep Node server: page + /api/{agents,log,send}
+server.mjs    # zero-dep Node server: page + /api/{agents,log,events,send,emit}
 index.html    # the whole arcade UI (all CSS/JS inline)
 ```
 

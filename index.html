@@ -160,6 +160,42 @@
   .lrow .score { font-size:15px; font-weight:800; color:var(--online); flex:0 0 auto; }
   .lrow .score small { font-size:8px; color:var(--dim); letter-spacing:1px; display:block; text-align:right; }
 
+  /* ---- score feed / telemetry ---- */
+  .board h2 .metahint { color:var(--dim); font-weight:400; letter-spacing:1px; }
+  .metastats { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:11px; }
+  .mstat {
+    background:#0a1122; border:1px solid var(--line); border-radius:8px;
+    padding:6px 12px; min-width:96px; text-align:center;
+  }
+  .mstat .mk { font-size:9px; color:var(--dim); letter-spacing:2px; }
+  .mstat .mv { font-size:18px; font-weight:800; color:var(--me); line-height:1.25; }
+  .mstat.evts .mv { color:var(--online); }
+  .feed { display:flex; flex-direction:column; gap:7px; max-height:300px; overflow:auto; }
+  .frow {
+    display:flex; align-items:center; gap:10px; background:#0a1122;
+    border:1px solid var(--line); border-radius:8px; padding:7px 11px;
+    border-left:3px solid var(--me);
+  }
+  .frow.fresh { animation:flash 1.4s ease-out; }
+  @keyframes flash { 0%{ background:#12324d; } 100%{ background:#0a1122; } }
+  .frow .ficon { font-size:19px; flex:0 0 auto; width:24px; text-align:center; }
+  .frow .fmid { flex:1; min-width:0; }
+  .frow .ftype { font-size:12px; font-weight:800; color:#dbe6ff; }
+  .frow .ftype b { color:var(--online); }
+  .frow .fref {
+    font-size:8px; font-weight:800; letter-spacing:1px; color:var(--idle);
+    border:1px solid currentColor; border-radius:4px; padding:1px 5px; margin-left:6px; white-space:nowrap;
+  }
+  .frow .fmeta { font-size:10px; color:var(--dim); margin-top:2px;
+                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .frow .fmeta .fby { color:var(--me); }
+  .frow .fattrs { color:#8fa6d8; }
+  .frow .ftime { font-size:10px; color:var(--dim); flex:0 0 auto; }
+  .feedempty { color:var(--dim); font-size:12px; text-align:center; padding:20px 0; line-height:1.7; }
+  .feedempty code { color:var(--idle); background:#0a1122; border:1px solid var(--line);
+                    border-radius:4px; padding:1px 6px; font-size:11px; }
+  .chip.evt .v { color:var(--me); }
+
   /* ---- bottom bus ticker ---- */
   .ticker {
     position:fixed; left:0; right:0; bottom:0; height:30px; z-index:45; display:flex; align-items:center;
@@ -277,14 +313,22 @@
     <div class="chip"><div class="k">PARTY</div><div class="v" id="total">–</div></div>
     <div class="chip scan"><div class="k">NEXT SCAN</div><div class="v" id="countdown">5:00</div></div>
     <div class="chip"><div class="k">CLOCK</div><div class="v" id="clock">--:--</div></div>
+    <div class="chip evt"><div class="k">EVENTS</div><div class="v" id="metaevt">–</div></div>
     <button class="btn" id="scan">⟳ SCAN NOW</button>
     <button class="btn" id="sfx" title="toggle sound">🔊 SFX</button>
     <button class="btn compose" id="compose">✉ MESSAGE</button>
+    <button class="btn" id="emit" title="record a telemetry event">＋ LOG METRIC</button>
   </div>
 
   <div class="board" id="board" style="display:none">
     <h2>🏆 SHIP LEADERBOARD <span class="boardhint">— issues / PRs in each agent's quest log</span></h2>
     <div class="lead" id="lead"></div>
+  </div>
+
+  <div class="board" id="metaboard">
+    <h2>🕹️ SCORE FEED <span class="metahint">— telemetry events the agents emit on the bus</span></h2>
+    <div class="metastats" id="metastats"></div>
+    <div class="feed" id="feed"></div>
   </div>
 
   <div class="grid" id="grid"></div>
@@ -319,6 +363,35 @@
     <div class="mfoot">
       <span class="mstatus" id="mstatus"></span>
       <button class="btn send" id="msend">▶ SEND</button>
+    </div>
+  </div>
+</div>
+<!-- emit / log-metric modal -->
+<div class="modalbg" id="emitbg">
+  <div class="modal">
+    <div class="mhead">＋ LOG A METRIC <button class="x" id="eclose" title="close">✕</button></div>
+    <div class="mgrid">
+      <div><label class="mlbl">TYPE *</label>
+        <input id="etype" list="etypes" spellcheck="false" placeholder="skill-ran" />
+        <datalist id="etypes">
+          <option value="skill-ran"></option>
+          <option value="skill-outcome"></option>
+          <option value="session-start"></option>
+          <option value="merged"></option>
+          <option value="pr-opened"></option>
+          <option value="issue-shipped"></option>
+        </datalist>
+      </div>
+      <div><label class="mlbl">NAME</label>
+        <input id="ename" spellcheck="false" placeholder="skill / tool name" /></div>
+    </div>
+    <label class="mlbl">REF <span style="color:var(--dim)">— branch, PR#, run id (optional)</span></label>
+    <input id="eref" spellcheck="false" placeholder="#6450" />
+    <label class="mlbl">ATTRS <span style="color:var(--dim)">— JSON object (optional)</span></label>
+    <textarea id="eattrs" rows="3" spellcheck="false" placeholder='{"found_bugs": true, "findings": 3}'></textarea>
+    <div class="mfoot">
+      <span class="mstatus" id="estatus"></span>
+      <button class="btn send" id="esend">▶ EMIT</button>
     </div>
   </div>
 </div>
@@ -375,6 +448,8 @@ function sfxOffline(at=0){
 function sfxScan(at=0){ beep(1500, at, 0.03, 'sine', 0.05); }
 // triumphant arpeggio — brand-new agent joins the guild
 function sfxJoin(at=0){ [523.25,659.25,783.99,1046.5,1318.5].forEach((f,i)=>beep(f, at+i*0.06, 0.13, 'square', 0.13)); }
+// achievement "power-up" — a telemetry event lands on the score feed
+function sfxPowerup(at=0){ [659.25,880,1174.66].forEach((f,i)=>beep(f, at+i*0.05, 0.12, 'triangle', 0.13)); }
 
 // resume the audio context on the first user gesture (autoplay policy)
 window.addEventListener('pointerdown', () => audio(), { once:true });
@@ -543,6 +618,92 @@ function renderLeaderboard(agents){
   }).join('');
 }
 
+/* ---------- SCORE FEED (agentcomm telemetry events) ---------- */
+const EVENT_ICONS = {
+  'skill-ran':'🎯', 'skill-outcome':'🏅', 'session-start':'🎬', 'session-end':'🏁',
+  'merged':'🚀', 'merge':'🚀', 'pr-opened':'📬', 'pr-merged':'🚀',
+  'issue-shipped':'📦', 'test-run':'🧪', 'deploy':'🛰️', 'error':'💥',
+};
+function eventIcon(e){
+  if (EVENT_ICONS[e.type]) return EVENT_ICONS[e.type];
+  // outcome flavor from attrs
+  if (e.attrs && (e.attrs.found_bugs === true || e.attrs.error)) return '🐛';
+  if (e.attrs && e.attrs.ok === true) return '✅';
+  return '✨';
+}
+function attrsText(attrs){
+  if (!attrs || typeof attrs !== 'object') return '';
+  const parts = Object.entries(attrs).slice(0, 4).map(([k,v]) => {
+    let val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+    if (val.length > 24) val = val.slice(0,23) + '…';
+    return `${k}=${val}`;
+  });
+  return parts.join(' · ');
+}
+
+let lastTopEventId = null;
+let metaSeeded = false;
+function renderMetrics(payload){
+  const stats = document.getElementById('metastats');
+  const feed = document.getElementById('feed');
+
+  if (!payload.supported){
+    stats.innerHTML = '';
+    document.getElementById('metaevt').textContent = '–';
+    feed.innerHTML = `<div class="feedempty">telemetry lane unavailable on this bus's CLI<br>`
+      + `needs <code>agentcomm ≥ 0.17</code> — point the server at one with <code>AGENTCOMM_CLI=…</code></div>`;
+    return;
+  }
+
+  const events = (payload.events || []).slice();
+  // newest → oldest for display
+  events.sort((a,b) => new Date(b.ts) - new Date(a.ts));
+
+  // aggregate score chips
+  const now = payload.now || Date.now();
+  const last24 = events.filter(e => now - new Date(e.ts).getTime() < 24*3600*1000).length;
+  const types = new Set(events.map(e => e.type)).size;
+  const emitters = new Set(events.map(e => e.agent)).size;
+  stats.innerHTML =
+    `<div class="mstat evts"><div class="mk">EVENTS</div><div class="mv">${events.length}</div></div>` +
+    `<div class="mstat"><div class="mk">LAST 24H</div><div class="mv">${last24}</div></div>` +
+    `<div class="mstat"><div class="mk">TYPES</div><div class="mv">${types}</div></div>` +
+    `<div class="mstat"><div class="mk">EMITTERS</div><div class="mv">${emitters}</div></div>`;
+  document.getElementById('metaevt').textContent = events.length;
+
+  if (!events.length){
+    feed.innerHTML = `<div class="feedempty">no telemetry yet on this bus<br>`
+      + `opt in with a <code>telemetry</code> section in <code>.agentcomm.json</code>, then agents `
+      + `<code>emit</code> events — or hit <code>＋ LOG METRIC</code> above</div>`;
+    lastTopEventId = null;
+    return;
+  }
+
+  // power-up when a genuinely new event arrives (not on first paint)
+  const topId = events[0].id;
+  const isNew = metaSeeded && topId !== lastTopEventId;
+  if (isNew) sfxPowerup(0);
+  lastTopEventId = topId;
+  metaSeeded = true;
+
+  feed.innerHTML = events.slice(0, 40).map((e, i) => {
+    const when = new Date(e.ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+    const label = esc(e.type) + (e.name ? ` <b>${esc(e.name)}</b>` : '');
+    const ref = e.ref ? `<span class="fref">${esc(e.ref)}</span>` : '';
+    const at = attrsText(e.attrs);
+    const fresh = (i === 0 && isNew) ? ' fresh' : '';
+    return `<div class="frow${fresh}">
+      <div class="ficon">${eventIcon(e)}</div>
+      <div class="fmid">
+        <div class="ftype">${label}${ref}</div>
+        <div class="fmeta"><span class="fby">${esc(splitName(e.agent||'?').base)}</span>`
+        + (at ? ` · <span class="fattrs">${esc(at)}</span>` : '') + `</div>
+      </div>
+      <div class="ftime">${esc(when)}</div>
+    </div>`;
+  }).join('');
+}
+
 /* ---------- BUS FEED ticker (agentcomm log) ---------- */
 let lastTopMsgId = null;
 function renderTicker(messages){
@@ -575,9 +736,10 @@ async function scan(){
   const cd = document.getElementById('countdown');
   cd.classList.add('blink');
   try {
-    const [aRes, lRes] = await Promise.all([
+    const [aRes, lRes, eRes] = await Promise.all([
       fetch('/api/agents', { cache:'no-store' }),
       fetch('/api/log', { cache:'no-store' }),
+      fetch('/api/events', { cache:'no-store' }),
     ]);
     const payload = await aRes.json();
     render(payload);
@@ -585,6 +747,9 @@ async function scan(){
 
     const logPayload = await lRes.json();
     if (logPayload.ok) renderTicker(logPayload.messages);
+
+    const evPayload = await eRes.json();
+    if (evPayload.ok) renderMetrics(evPayload);
   } catch (e) {
     document.getElementById('bus').innerHTML = '<span class="err">server unreachable — is server.mjs running?</span>';
   } finally {
@@ -688,6 +853,63 @@ document.getElementById('msend').addEventListener('click', sendMessage);
 modalbg.addEventListener('click', e => { if (e.target === modalbg) closeCompose(); });
 mbody.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') sendMessage(); });
 
+/* ---------- emit / log-metric modal ---------- */
+const emitbg = document.getElementById('emitbg');
+const etype = document.getElementById('etype');
+const ename = document.getElementById('ename');
+const eref = document.getElementById('eref');
+const eattrs = document.getElementById('eattrs');
+const estatus = document.getElementById('estatus');
+function openEmit(){
+  estatus.textContent = ''; estatus.className = 'mstatus';
+  emitbg.classList.add('open');
+  audio();
+  setTimeout(() => etype.focus(), 30);
+}
+function closeEmit(){ emitbg.classList.remove('open'); }
+
+async function emitMetric(){
+  const type = etype.value.trim();
+  if (!type){ estatus.textContent = 'event type is required'; estatus.className = 'mstatus err'; return; }
+  const attrs = eattrs.value.trim();
+  if (attrs){
+    try { const p = JSON.parse(attrs); if (typeof p !== 'object' || Array.isArray(p)) throw 0; }
+    catch { estatus.textContent = 'attrs must be a JSON object'; estatus.className = 'mstatus err'; return; }
+  }
+  const btn = document.getElementById('esend');
+  btn.disabled = true; estatus.textContent = 'emitting…'; estatus.className = 'mstatus';
+  try {
+    const r = await fetch('/api/emit', {
+      method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({ type, name:ename.value.trim(), ref:eref.value.trim(), attrs }),
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'emit failed');
+    if (j.reason === 'telemetry-not-enabled'){
+      // spooled locally but the bus hasn't opted in — be honest about it
+      estatus.textContent = 'telemetry not enabled on this bus — event was dropped';
+      estatus.className = 'mstatus err';
+      toast('telemetry not enabled on this bus', true);
+    } else {
+      sfxPowerup(0);
+      toast(j.flushed ? `🏅 metric emitted (${j.flushed} shipped)!` : '🏅 metric spooled!');
+      eattrs.value = ''; ename.value = ''; eref.value = '';
+      closeEmit();
+      setTimeout(scan, 400); // refresh the score feed
+    }
+  } catch (e) {
+    estatus.textContent = String(e.message || e); estatus.className = 'mstatus err';
+    toast('emit failed', true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById('emit').addEventListener('click', openEmit);
+document.getElementById('eclose').addEventListener('click', closeEmit);
+document.getElementById('esend').addEventListener('click', emitMetric);
+emitbg.addEventListener('click', e => { if (e.target === emitbg) closeEmit(); });
+eattrs.addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key === 'Enter') emitMetric(); });
+
 /* ---------- per-agent history modal ---------- */
 const histbg = document.getElementById('histbg');
 function openHistory(name){
@@ -730,7 +952,7 @@ document.getElementById('grid').addEventListener('click', e => {
 
 /* Esc closes any modal */
 window.addEventListener('keydown', e => {
-  if (e.key === 'Escape'){ closeCompose(); histbg.classList.remove('open'); }
+  if (e.key === 'Escape'){ closeCompose(); closeEmit(); histbg.classList.remove('open'); }
 });
 
 scan();
