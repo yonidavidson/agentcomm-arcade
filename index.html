@@ -71,6 +71,18 @@
   }
   .btn:hover { color:#fff; border-color:var(--me); }
   .btn:active { transform:translateY(2px); box-shadow:0 1px 0 #0a1020; }
+  .ctl {
+    display:flex; align-items:center; gap:8px; align-self:center;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line); border-radius:8px; padding:7px 12px;
+    box-shadow:0 3px 0 #0a1020; cursor:pointer;
+  }
+  .ctl .k { font-size:9px; color:var(--dim); letter-spacing:2px; white-space:nowrap; }
+  .ctl select {
+    background:#0a1122; color:var(--ink); border:1px solid var(--line); border-radius:6px;
+    padding:4px 6px; font:inherit; font-size:12px; font-weight:700; letter-spacing:1px; cursor:pointer;
+  }
+  .ctl:hover { border-color:var(--me); }
 
   /* ---- roster grid ---- */
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
@@ -318,6 +330,18 @@
     <button class="btn" id="sfx" title="toggle sound">🔊 SFX</button>
     <button class="btn compose" id="compose">✉ MESSAGE</button>
     <button class="btn" id="emit" title="record a telemetry event">＋ LOG METRIC</button>
+    <label class="ctl" title="hide agents idle longer than this">
+      <span class="k">HIDE IDLE ></span>
+      <select id="idlesel">
+        <option value="3600000">1h</option>
+        <option value="21600000">6h</option>
+        <option value="43200000">12h</option>
+        <option value="86400000">24h</option>
+        <option value="259200000">3d</option>
+        <option value="604800000">7d</option>
+        <option value="0">∞ show all</option>
+      </select>
+    </label>
   </div>
 
   <div class="board" id="board" style="display:none">
@@ -478,6 +502,14 @@ function energyFor(ms){
 let nextScanAt = Date.now() + SCAN_MS;
 let lastAgents = [];
 let lastMessages = [];
+let lastPayload = null;   // last agents payload, so the idle filter can re-render without a rescan
+
+/* hide agents idle longer than this (configurable; default 24h, persisted). 0 = show all */
+function hideIdleMs(){
+  const el = document.getElementById('idlesel');
+  const v = el ? Number(el.value) : 86400000;
+  return v > 0 ? v : Infinity;
+}
 
 /* diff this roster vs the previous one and play the matching sounds */
 let prevState = null;          // Map<name,{active,status,known}>
@@ -529,16 +561,27 @@ function render(payload){
     bus.innerHTML = '<span class="err">bus error: ' + esc(payload.error||'unknown') + '</span>';
     return;
   }
-  bus.textContent = 'git+ssh bus · ' + payload.agents.length + ' registered · last scan ' + new Date(payload.now).toLocaleTimeString();
+  lastPayload = payload;
 
   playEvents(payload.agents);
 
-  lastAgents = payload.agents.slice();
-  // sort: online first, then most-recently-seen
-  const agents = payload.agents.slice().sort((a,b)=>{
-    if (a.active !== b.active) return a.active ? -1 : 1;
-    return new Date(b.lastSeen) - new Date(a.lastSeen);
-  });
+  lastAgents = payload.agents.slice();   // full roster (compose can still reach anyone)
+
+  // hide sessions idle longer than the configured window, then sort:
+  // online first, then most-recently-seen
+  const cutoff = hideIdleMs();
+  const registered = payload.agents.length;
+  const agents = payload.agents
+    .filter(a => (payload.now - new Date(a.lastSeen).getTime()) <= cutoff)
+    .sort((a,b)=>{
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      return new Date(b.lastSeen) - new Date(a.lastSeen);
+    });
+  const hidden = registered - agents.length;
+
+  bus.textContent = 'git+ssh bus · ' + registered + ' registered'
+    + (hidden ? ' · ' + hidden + ' hidden (idle)' : '')
+    + ' · last scan ' + new Date(payload.now).toLocaleTimeString();
 
   let online = 0;
   grid.innerHTML = agents.map(a => {
@@ -584,6 +627,11 @@ function render(payload){
 
   document.getElementById('online').textContent = online;
   document.getElementById('total').textContent = agents.length;
+  if (!agents.length){
+    empty.textContent = hidden
+      ? `all ${hidden} registered agent${hidden === 1 ? ' is' : 's are'} idle beyond the filter — raise “HIDE IDLE >” to see them`
+      : 'the guild hall is empty…';
+  }
   empty.style.display = agents.length ? 'none' : 'block';
   grid.style.display = agents.length ? 'grid' : 'none';
 }
@@ -594,10 +642,13 @@ function shipScore(status){
   // count distinct issue/PR references (#1234) mentioned in the quest log
   return new Set(status.match(/#\d{2,6}/g) || []).size;
 }
-function renderLeaderboard(agents){
+function renderLeaderboard(agents, now){
   const board = document.getElementById('board');
   const lead = document.getElementById('lead');
+  const cutoff = hideIdleMs();
+  const at = now || Date.now();
   const ranked = agents
+    .filter(a => (at - new Date(a.lastSeen).getTime()) <= cutoff)   // respect the idle filter
     .map(a => ({ a, score: shipScore(a.status) }))
     .filter(x => x.score > 0)
     .sort((x,y) => y.score - x.score)
@@ -743,7 +794,7 @@ async function scan(){
     ]);
     const payload = await aRes.json();
     render(payload);
-    if (payload.ok) renderLeaderboard(payload.agents);
+    if (payload.ok) renderLeaderboard(payload.agents, payload.now);
 
     const logPayload = await lRes.json();
     if (logPayload.ok) renderTicker(logPayload.messages);
@@ -770,6 +821,17 @@ setInterval(()=>{
 }, 1000);
 
 document.getElementById('scan').addEventListener('click', () => { sfxScan(0); scan(); });
+
+/* ---------- idle filter (hide sessions idle > window; default 24h) ---------- */
+const idlesel = document.getElementById('idlesel');
+idlesel.value = localStorage.getItem('guildHideIdle') || '86400000';   // default 24h
+if (!idlesel.value || !idlesel.selectedOptions.length) idlesel.value = '86400000';
+idlesel.addEventListener('change', () => {
+  localStorage.setItem('guildHideIdle', idlesel.value);
+  sfxBlip(0);
+  // re-render instantly from the last scan — no need to hit the bus again
+  if (lastPayload) { render(lastPayload); renderLeaderboard(lastPayload.agents, lastPayload.now); }
+});
 
 const sfxBtn = document.getElementById('sfx');
 function paintSfxBtn(){ sfxBtn.textContent = sfxOn ? '🔊 SFX' : '🔇 SFX'; sfxBtn.style.opacity = sfxOn ? 1 : .55; }
