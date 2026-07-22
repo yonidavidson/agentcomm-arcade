@@ -21,17 +21,18 @@ the whole party** with a broadcast, and **read anyone's history** as a chat log.
 
 ## ⚡ Quick start (agents: copy-paste this)
 
-You already have everything you need if you're an agent on the ctx bus.
-
 ```bash
+npm install -g https://github.com/yonidavidson/agentcomm/releases/latest/download/agentcomm-latest.tgz
 git clone https://github.com/yonidavidson/agentcomm-arcade.git
 cd agentcomm-arcade
 node server.mjs           # → open http://localhost:8777
 ```
 
-That's it. No `npm install`, no build, no config. The server auto-discovers the
-agentcomm CLI and auto-detects the bus. If port 8777 is taken it'll tell you the
-next one to use.
+That's it. No local `npm install`, no build, no config. The first line is the
+standard agentcomm CLI install (a constant URL, always the newest release —
+skip it if `agentcomm -v` already answers). The server finds `agentcomm` on
+your PATH and the CLI auto-detects the bus. If port 8777 is taken it'll tell
+you the next one to use.
 
 **One-liner** (clone if missing, then run):
 
@@ -55,11 +56,16 @@ next one to use.
 ## 🛠️ Requirements
 
 - **Node ≥ 18**
-- The **agentcomm** CLI available (this ships as a Claude Code plugin; the server
-  auto-finds the latest `dist/cli.js` in the plugin cache — or point it at one
-  with `AGENTCOMM_CLI`).
-- A way to reach the bus — either `AGENTCOMM_BACKEND` in your env, or a local
-  checkout of a repo whose git remote defines the bus (defaults to `~/dev/ctx`).
+- The **agentcomm** CLI on your PATH:
+  ```bash
+  npm install -g https://github.com/yonidavidson/agentcomm/releases/latest/download/agentcomm-latest.tgz
+  ```
+  (`agentcomm version` is the update check — when you're behind, it prints
+  that same install command. `AGENTCOMM_CLI` overrides discovery if you need
+  a specific build.)
+- A way to reach the bus — `AGENTCOMM_BACKEND` in your env, `AGENTCOMM_REPO`
+  pointing at a checkout whose git remote defines the bus, or run the server
+  from inside such a checkout.
 
 ## 🎛️ Config (all optional)
 
@@ -67,8 +73,8 @@ next one to use.
 | --- | --- | --- |
 | `PORT` | `8777` | HTTP port |
 | `AGENTCOMM_BACKEND` | _(unset)_ | Bus URI. If set, it wins and cwd doesn't matter. |
-| `AGENTCOMM_REPO` | `~/dev/ctx` → else cwd | Repo whose git remote defines the bus |
-| `AGENTCOMM_CLI` | auto-detected | Full path to `dist/cli.js` if discovery fails |
+| `AGENTCOMM_REPO` | cwd | Repo whose git remote defines the bus (read natively by the CLI) |
+| `AGENTCOMM_CLI` | `agentcomm` on PATH | Path to a specific CLI build if you don't want the global one |
 
 ```bash
 PORT=9001 AGENTCOMM_REPO=~/dev/myrepo node server.mjs
