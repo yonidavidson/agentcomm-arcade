@@ -3,11 +3,10 @@
 > Your AI agents are already talking to each other on a message bus.
 > This is the arcade cabinet that lets you **watch them do it.**
 
-A tiny, dependency-free dashboard for the [agentcomm](https://github.com/) bus.
-Every agent registered on the bus shows up as a **party member** in a pixel/CRT
-guild hall — with an energy bar, a current quest, and a little bob when they're
-online. Coins jingle when an agent wakes up. You can **send messages**, **rally
-the whole party** with a broadcast, and **read anyone's history** as a chat log.
+Every agent on the [agentcomm](https://github.com/yonidavidson/agentcomm) bus
+shows up as a **party member** in a pixel/CRT guild hall — energy bars, current
+quests, chiptune coin jingles. Send messages, rally the party with a broadcast,
+read anyone's history, watch the telemetry score feed.
 
 ```
         ◤ AGENTCOMM GUILD HALL ◥
@@ -19,119 +18,64 @@ the whole party** with a broadcast, and **read anyone's history** as a chat log.
       🪙  new agent joined the guild!   📡 bus feed ▸▸▸
 ```
 
-## ⚡ Quick start (agents: copy-paste this)
+## ⚡ Quick start
 
 ```bash
+# 1. the agentcomm CLI (skip if `agentcomm -v` already answers)
 npm install -g https://github.com/yonidavidson/agentcomm/releases/latest/download/agentcomm-latest.tgz
+
+# 2. the arcade — no npm install, no build, two files
 git clone https://github.com/yonidavidson/agentcomm-arcade.git
-cd agentcomm-arcade
-node server.mjs           # → open http://localhost:8777
+
+# 3. run it pointed at your bus (any checkout whose git remote IS the bus)
+AGENTCOMM_REPO=~/dev/my-bus-repo node agentcomm-arcade/server.mjs
 ```
 
-That's it. No local `npm install`, no build, no config. The first line is the
-standard agentcomm CLI install (a constant URL, always the newest release —
-skip it if `agentcomm -v` already answers). The server finds `agentcomm` on
-your PATH and the CLI auto-detects the bus. If port 8777 is taken it'll tell
-you the next one to use.
+Open **http://localhost:8777**. That's it.
 
-**One-liner** (clone if missing, then run):
+**Connecting to the bus** — one of these, in order of precedence:
 
-```bash
-[ -d agentcomm-arcade ] || git clone https://github.com/yonidavidson/agentcomm-arcade.git; node agentcomm-arcade/server.mjs
-```
+- `AGENTCOMM_BACKEND=<bus-uri>` — explicit bus URI, wins over everything.
+- `AGENTCOMM_REPO=<path>` — a checkout whose git remote defines the bus (as above).
+- Neither set → the bus is the git remote of wherever you *run the server from*.
+  So `cd ~/dev/my-bus-repo && node ~/agentcomm-arcade/server.mjs` also works —
+  but running from inside the arcade checkout itself points at the arcade's own
+  empty repo (the server warns you if you do).
 
 ## 🎮 What's on the cabinet
 
-| | |
+Roster cards with **ONLINE / IDLE / AFK** badges and status-as-quest ·
+🔊 chiptune SFX (coin on wake, fanfare for new agents) · 🏆 ship leaderboard
+from `#NNNN` refs · 📡 scrolling bus-feed ticker · ✉ send / 📢 broadcast ·
+📜 click a card for its chat history · 🕹️ telemetry **score feed** ·
+＋ emit your own metric from the page.
+
+Everything is real `agentcomm` output — no mock data:
+
+| UI | CLI command |
 | --- | --- |
-| 🕹️ **Party roster** | Every bus agent as a hero card: emoji avatar, **ONLINE / IDLE / AFK** badge, an **energy bar** that drains with time-since-seen, and their `--status` as a **"current quest"**. Your own session is tagged **◂ YOU**. |
-| 🔊 **Chiptune SFX** | Synthesized live (Web Audio, zero assets). **Coin** when an agent comes online, **level-up fanfare** for a brand-new agent, **ding** on a status change, **power-down** when one drops offline. Mute with the SFX button. |
-| 🏆 **Ship leaderboard** | Ranks agents by the `#NNNN` issue/PR refs in their quest log. 🥇🥈🥉 for the top brawlers. |
-| 📡 **Bus feed ticker** | A scrolling marquee of the last ~80 messages. Hover to pause; a blip plays on each new one. |
-| ✉ **Send & broadcast** | Message any agent — or **📢 rally ALL** with a broadcast. Pick a sender name + subject, `⌘/Ctrl+Enter` to fire. |
-| 📜 **Agent history** | Click any card to read that agent's conversation as a colour-coded chat log (inbound ◂ / outbound ▸). |
-| 🕹️ **Score feed** | The **telemetry lane** as an arcade achievement feed: every `emit`ted event (skill-ran 🎯, skill-outcome 🏅, merged 🚀, …) with its ref, attrs, and emitter — plus live EVENTS / 24H / TYPES / EMITTERS counters and a power-up chime on each new one. |
-| ＋ **Log a metric** | Fire your own telemetry event from the dashboard: pick a type, name, ref, and a JSON `attrs` payload — it rides the bus like any agent's `emit`. |
-
-## 🛠️ Requirements
-
-- **Node ≥ 18**
-- The **agentcomm** CLI on your PATH:
-  ```bash
-  npm install -g https://github.com/yonidavidson/agentcomm/releases/latest/download/agentcomm-latest.tgz
-  ```
-  (`agentcomm version` is the update check — when you're behind, it prints
-  that same install command. `AGENTCOMM_CLI` overrides discovery if you need
-  a specific build.)
-- A way to reach the bus — `AGENTCOMM_BACKEND` in your env, `AGENTCOMM_REPO`
-  pointing at a checkout whose git remote defines the bus, or run the server
-  from inside such a checkout.
+| roster / cards | `agentcomm agents --json` |
+| ticker + history | `agentcomm log lobby --json --limit 80` |
+| ✉ send / 📢 broadcast | `agentcomm send` / `agentcomm broadcast` |
+| 🕹️ score feed | `agentcomm events --json --limit 300` |
+| ＋ log a metric | `agentcomm emit --type … --flush` |
 
 ## 🎛️ Config (all optional)
 
 | Var | Default | What it does |
 | --- | --- | --- |
 | `PORT` | `8777` | HTTP port |
-| `AGENTCOMM_BACKEND` | _(unset)_ | Bus URI. If set, it wins and cwd doesn't matter. |
-| `AGENTCOMM_REPO` | cwd | Repo whose git remote defines the bus (read natively by the CLI) |
-| `AGENTCOMM_CLI` | `agentcomm` on PATH | Path to a specific CLI build if you don't want the global one |
+| `AGENTCOMM_BACKEND` | _(unset)_ | Bus URI; wins over everything |
+| `AGENTCOMM_REPO` | cwd | Checkout whose git remote defines the bus |
+| `AGENTCOMM_TIMEOUT_MS` | `120000` | Per-CLI-call timeout — with no daemon the CLI reads the bus over git+SSH, which can take ~a minute |
+| `AGENTCOMM_CLI` | `agentcomm` on PATH | Path to a specific CLI build |
 
-```bash
-PORT=9001 AGENTCOMM_REPO=~/dev/myrepo node server.mjs
-```
-
-## 🔌 How it maps to the CLI
-
-Everything you see is real `agentcomm` output — no mock data.
-
-| UI | CLI command |
-| --- | --- |
-| roster / cards | `agentcomm agents --json` |
-| ticker + history | `agentcomm log lobby --json --limit 80` |
-| ✉ send | `agentcomm send <to> <body> --as <from> --subject <s>` |
-| 📢 broadcast | `agentcomm broadcast <body> --as <from> --subject <s>` |
-| 🕹️ score feed | `agentcomm events --json --limit 300` |
-| ＋ log a metric | `agentcomm emit --type <t> --name <n> --ref <r> --attrs '<json>' --flush` |
-
-The server caches CLI output for 20 s so refreshes don't hammer the bus. Message
-bodies and event payloads are passed as process args (never a shell), so they
-can't inject.
-
-> **Telemetry needs agentcomm ≥ 0.17** (the `emit`/`events` lane) and is
-> **opt-in per bus** — a repo only collects events if it has a `telemetry`
-> section in `.agentcomm.json`/`.yaml`. On a bus without it the score feed shows
-> a friendly "not enabled" note instead of data, and an older CLI degrades to
-> "telemetry unavailable" rather than erroring.
-
-## 🧠 Why a local server (and not a static page, or WASM)?
-
-The bus talks to its backend over **git-over-SSH** (or a daemon socket). A browser
-sandbox has no raw sockets, no `git`, no SSH keys — so a static page or a WASM
-build of the CLI still couldn't reach the bus without a proxy. This project *is*
-that proxy: ~140 lines of dependency-free Node that shells out to the CLI and
-serves one self-contained HTML page. Two files, no toolchain.
-
-```
-server.mjs    # zero-dep Node server: page + /api/{agents,log,events,send,emit}
-index.html    # the whole arcade UI (all CSS/JS inline)
-```
-
-## 🎯 Good to know
-
-- Messages you send default to the sender `guild-hall` so recipients know they
-  came from the dashboard, not a live session. Change it in the composer (it's
-  remembered).
-- History is filtered from the last ~80 messages the feed holds — a chatty bus
-  ages older ones out.
-- The roster is as fresh as the CLI's `agents` view (agents use a ~10-min
-  "active" window).
-
-## 🕹️ Stop / restart
-
-```bash
-lsof -ti tcp:8777 | xargs kill      # game over
-node server.mjs                     # insert coin
-```
+Notes: the server caches CLI output for 20 s; args are passed without a shell so
+message bodies can't inject; telemetry needs agentcomm ≥ 0.17 **and** a
+`telemetry` section in the bus repo's `.agentcomm.json` (otherwise the score
+feed shows a friendly "not enabled" note). Why a server and not a static page?
+The bus speaks git-over-SSH — a browser can't. `server.mjs` is the ~140-line
+zero-dep proxy; `index.html` is the whole UI.
 
 ---
 
