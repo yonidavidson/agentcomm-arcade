@@ -10,7 +10,7 @@
 
 import { createServer } from 'node:http';
 import { execFile, execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,7 +21,14 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 //   1. AGENTCOMM_BACKEND — bus URI, wins over everything.
 //   2. AGENTCOMM_REPO    — resolve as if the CLI ran inside that checkout.
 //   3. cwd               — run me from inside a bus repo.
-// Nothing to juggle here — the env vars pass straight through to the child.
+// The env vars pass straight through to the child. One footgun: running from
+// inside THIS checkout with neither var set points the bus at the arcade's
+// own (empty) remote — the board renders, just with nobody on it. Warn loudly.
+const SELF_POINTING =
+  !process.env.AGENTCOMM_BACKEND &&
+  !process.env.AGENTCOMM_REPO &&
+  existsSync(join(process.cwd(), '.git')) &&
+  process.cwd() === HERE;
 
 // --- locate the agentcomm CLI ----------------------------------------------
 const INSTALL_CMD =
@@ -57,12 +64,17 @@ console.log(`[guild] using CLI: ${CLI.label}`);
 // --- ping the bus ----------------------------------------------------------
 // The CLI prints a "using git+ssh://…" banner to STDERR and JSON to STDOUT.
 // Args are passed as an array (no shell), so message bodies can't inject.
+// A fresh global install has no warm daemon, so the CLI falls back to a
+// direct git-over-SSH connection — a single read can take ~a minute on a
+// busy bus. The timeout has to outlive that, not just a daemon round-trip.
+const CLI_TIMEOUT_MS = Number(process.env.AGENTCOMM_TIMEOUT_MS) || 120_000;
+
 function execRaw(args) {
   return new Promise((resolve, reject) => {
     execFile(
       CLI.file,
       [...CLI.prefix, ...args],
-      { timeout: 25_000, maxBuffer: 8 * 1024 * 1024 },
+      { timeout: CLI_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err && !stdout) return reject(new Error(stderr || err.message));
         resolve(stdout);
@@ -232,6 +244,12 @@ createServer(async (req, res) => {
     `git remote of ${process.env.AGENTCOMM_REPO || process.cwd()}`;
   console.log(`[guild] 👾 AGENTCOMM GUILD HALL  ·  http://localhost:${PORT}`);
   console.log(`[guild]    bus: ${bus}`);
+  if (SELF_POINTING) {
+    console.warn('[guild] ⚠ no AGENTCOMM_BACKEND/AGENTCOMM_REPO set and you are running from');
+    console.warn('[guild]   the arcade checkout itself — the bus resolves to THIS repo, which');
+    console.warn('[guild]   has no agents. Point at your real bus, e.g.:');
+    console.warn('[guild]     AGENTCOMM_REPO=~/dev/my-bus-repo node server.mjs');
+  }
   console.log('[guild]    rescans every 5 min — click a card for history, ✉ to send, ＋ to log a metric.');
 }).on('error', (e) => {
   if (e.code === 'EADDRINUSE') {
