@@ -9,54 +9,50 @@
 //   → open http://localhost:8777
 
 import { createServer } from 'node:http';
-import { execFile } from 'node:child_process';
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { execFile, execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.env.PORT || 8777);
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-// Which bus do we talk to? Precedence:
-//   1. AGENTCOMM_BACKEND set  → the CLI reads it from env; cwd is irrelevant.
-//   2. AGENTCOMM_REPO set     → run the CLI there (its git remote = the bus).
-//   3. ~/dev/ctx if it exists → the common case for ctx agents.
-//   4. process.cwd()          → last resort: run me from inside a bus repo.
-function pickRepo() {
-  if (process.env.AGENTCOMM_BACKEND) return process.cwd(); // backend wins; cwd unused
-  if (process.env.AGENTCOMM_REPO) return process.env.AGENTCOMM_REPO;
-  const ctx = join(homedir(), 'dev/ctx');
-  if (existsSync(join(ctx, '.git'))) return ctx;
-  return process.cwd();
-}
-const REPO = pickRepo();
+// Which bus do we talk to? The CLI resolves it natively (agentcomm >= 0.17.4):
+//   1. AGENTCOMM_BACKEND — bus URI, wins over everything.
+//   2. AGENTCOMM_REPO    — resolve as if the CLI ran inside that checkout.
+//   3. cwd               — run me from inside a bus repo.
+// Nothing to juggle here — the env vars pass straight through to the child.
 
-// --- locate the agentcomm CLI (plugin cache, latest version) ---------------
-function findCli() {
-  if (process.env.AGENTCOMM_CLI) return process.env.AGENTCOMM_CLI;
-  const base = join(homedir(), '.claude/plugins/cache/yonidavidson-plugins/agentcomm');
-  const versions = readdirSync(base)
-    .filter((v) => /^\d+\.\d+\.\d+/.test(v))
-    .sort((a, b) => {
-      const pa = a.split('.').map(Number);
-      const pb = b.split('.').map(Number);
-      for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pa[i] - pb[i];
-      return 0;
-    });
-  if (!versions.length) throw new Error(`no agentcomm version found under ${base}`);
-  return join(base, versions.at(-1), 'dist/cli.js');
+// --- locate the agentcomm CLI ----------------------------------------------
+const INSTALL_CMD =
+  'npm install -g https://github.com/yonidavidson/agentcomm/releases/latest/download/agentcomm-latest.tgz';
+
+// AGENTCOMM_CLI (explicit override) or `agentcomm` on PATH — the standard
+// global install. A .js override runs through this Node; the PATH install is
+// a shell shim, so it's spawned directly.
+function resolveCli() {
+  const override = process.env.AGENTCOMM_CLI;
+  if (override) {
+    return /\.(m|c)?js$/.test(override)
+      ? { file: process.execPath, prefix: [override], label: `${override} (AGENTCOMM_CLI)` }
+      : { file: override, prefix: [], label: `${override} (AGENTCOMM_CLI)` };
+  }
+  try {
+    execFileSync('agentcomm', ['-v'], { stdio: 'ignore', timeout: 25_000 });
+    return { file: 'agentcomm', prefix: [], label: 'agentcomm (on PATH)' };
+  } catch {
+    return null;
+  }
 }
 
-let CLI;
-try {
-  CLI = findCli();
-  console.log(`[guild] using CLI: ${CLI}`);
-} catch (e) {
-  console.error(`[guild] could not find agentcomm CLI: ${e.message}`);
-  console.error('[guild] set AGENTCOMM_CLI=/path/to/dist/cli.js to override.');
+const CLI = resolveCli();
+if (!CLI) {
+  console.error('[guild] agentcomm CLI not found on PATH. Install it with:');
+  console.error(`[guild]   ${INSTALL_CMD}`);
+  console.error('[guild] (or set AGENTCOMM_CLI=/path/to/cli to override)');
   process.exit(1);
 }
+console.log(`[guild] using CLI: ${CLI.label}`);
 
 // --- ping the bus ----------------------------------------------------------
 // The CLI prints a "using git+ssh://…" banner to STDERR and JSON to STDOUT.
@@ -64,9 +60,9 @@ try {
 function execRaw(args) {
   return new Promise((resolve, reject) => {
     execFile(
-      process.execPath,
-      [CLI, ...args],
-      { cwd: REPO, timeout: 25_000, maxBuffer: 8 * 1024 * 1024 },
+      CLI.file,
+      [...CLI.prefix, ...args],
+      { timeout: 25_000, maxBuffer: 8 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err && !stdout) return reject(new Error(stderr || err.message));
         resolve(stdout);
@@ -231,7 +227,9 @@ createServer(async (req, res) => {
     res.end(JSON.stringify({ ok: false, now: Date.now(), error: String(e.message || e) }));
   }
 }).listen(PORT, () => {
-  const bus = process.env.AGENTCOMM_BACKEND || `git remote of ${REPO}`;
+  const bus =
+    process.env.AGENTCOMM_BACKEND ||
+    `git remote of ${process.env.AGENTCOMM_REPO || process.cwd()}`;
   console.log(`[guild] 👾 AGENTCOMM GUILD HALL  ·  http://localhost:${PORT}`);
   console.log(`[guild]    bus: ${bus}`);
   console.log('[guild]    rescans every 5 min — click a card for history, ✉ to send, ＋ to log a metric.');
