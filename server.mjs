@@ -15,6 +15,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PORT = Number(process.env.PORT || 8777);
+// Loopback by default. This board is unauthenticated and it can WRITE to the
+// bus (send, broadcast, emit), so binding every interface — Node's default
+// when listen() gets no host — hands anyone who can route to this machine the
+// ability to read the roster and post as you. Set HOST=0.0.0.0 to expose it
+// deliberately (a shared box, a dev VM, a container you port-forward from).
+const HOST = process.env.HOST || '127.0.0.1';
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 // Which bus do we talk to? The CLI resolves it natively (agentcomm >= 0.17.4):
@@ -238,12 +244,17 @@ createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ ok: false, now: Date.now(), error: String(e.message || e) }));
   }
-}).listen(PORT, () => {
+}).listen(PORT, HOST, () => {
   const bus =
     process.env.AGENTCOMM_BACKEND ||
     `git remote of ${process.env.AGENTCOMM_REPO || process.cwd()}`;
-  console.log(`[guild] 👾 AGENTCOMM GUILD HALL  ·  http://localhost:${PORT}`);
+  const host = HOST === '127.0.0.1' || HOST === '::1' ? 'localhost' : HOST;
+  console.log(`[guild] 👾 AGENTCOMM GUILD HALL  ·  http://${host}:${PORT}`);
   console.log(`[guild]    bus: ${bus}`);
+  if (host !== 'localhost') {
+    console.warn(`[guild] ⚠ bound to ${HOST} — this board is unauthenticated and can post`);
+    console.warn('[guild]   to the bus, so anyone who can reach this port can send as you.');
+  }
   if (SELF_POINTING) {
     console.warn('[guild] ⚠ no AGENTCOMM_BACKEND/AGENTCOMM_REPO set and you are running from');
     console.warn('[guild]   the arcade checkout itself — the bus resolves to THIS repo, which');
