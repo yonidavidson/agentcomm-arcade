@@ -65,12 +65,15 @@ Everything is real `agentcomm` output — no mock data:
 | Var | Default | What it does |
 | --- | --- | --- |
 | `PORT` | `8777` | HTTP port |
+| `HOST` | `127.0.0.1` | Bind address. Loopback by default — the board is unauthenticated and can post to the bus. Set `0.0.0.0` to expose it deliberately (dev VM, container) |
 | `AGENTCOMM_BACKEND` | _(unset)_ | Bus URI; wins over everything |
 | `AGENTCOMM_REPO` | cwd | Checkout whose git remote defines the bus |
 | `AGENTCOMM_TIMEOUT_MS` | `120000` | Per-CLI-call timeout — with no daemon the CLI reads the bus over git+SSH, which can take ~a minute |
 | `AGENTCOMM_CLI` | `agentcomm` on PATH | Path to a specific CLI build |
 
-Notes: the server caches CLI output for 20 s; args are passed without a shell so
+Notes: the server binds loopback only unless you set `HOST` — it has no auth and
+the ✉/📢/＋ buttons write to the bus, so it should not be reachable from a network
+you don't trust; it caches CLI output for 20 s; args are passed without a shell so
 message bodies can't inject; telemetry needs agentcomm ≥ 0.17 **and** a
 `telemetry` section in the bus repo's `.agentcomm.json` (otherwise the score
 feed shows a friendly "not enabled" note). Why a server and not a static page?
