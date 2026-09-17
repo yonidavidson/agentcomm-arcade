@@ -503,6 +503,7 @@ let nextScanAt = Date.now() + SCAN_MS;
 let lastAgents = [];
 let lastMessages = [];
 let lastPayload = null;   // last agents payload, so the idle filter can re-render without a rescan
+let lastEvents = [];      // last telemetry events, so the leaderboard can score merges/agent-runs too
 
 /* hide agents idle longer than this (configurable; default 24h, persisted). 0 = show all */
 function hideIdleMs(){
@@ -636,20 +637,35 @@ function render(payload){
   grid.style.display = agents.length ? 'grid' : 'none';
 }
 
-/* ---------- SHIP LEADERBOARD (parsed from each agent's status) ---------- */
-function shipScore(status){
+/* ---------- SHIP LEADERBOARD (status refs + telemetry events) ---------- */
+// A live `status` line only ever shows the CURRENT task — once an agent
+// moves on, an earlier merged PR falls out of view. The persisted telemetry
+// ledger (`agentcomm events`) doesn't have that problem, so it counts too.
+const EVENT_POINTS = {
+  merged: 2, merge: 2,
+  'agent-ran': 1, 'skill-ran': 1,
+  'task-completed': 1,
+};
+function statusRefScore(status){
   if (!status) return 0;
   // count distinct issue/PR references (#1234) mentioned in the quest log
   return new Set(status.match(/#\d{2,6}/g) || []).size;
 }
-function renderLeaderboard(agents, now){
+function telemetryScore(agentName, events){
+  if (!events || !events.length) return 0;
+  return events.reduce((sum, e) => sum + (e.agent === agentName ? (EVENT_POINTS[e.type] || 0) : 0), 0);
+}
+function shipScore(status, agentName, events){
+  return statusRefScore(status) + telemetryScore(agentName, events);
+}
+function renderLeaderboard(agents, now, events){
   const board = document.getElementById('board');
   const lead = document.getElementById('lead');
   const cutoff = hideIdleMs();
   const at = now || Date.now();
   const ranked = agents
     .filter(a => (at - new Date(a.lastSeen).getTime()) <= cutoff)   // respect the idle filter
-    .map(a => ({ a, score: shipScore(a.status) }))
+    .map(a => ({ a, score: shipScore(a.status, a.name, events) }))
     .filter(x => x.score > 0)
     .sort((x,y) => y.score - x.score)
     .slice(0, 8);
@@ -793,13 +809,15 @@ async function scan(){
       fetch('/api/events', { cache:'no-store' }),
     ]);
     const payload = await aRes.json();
+    const evPayload = await eRes.json();
+    if (evPayload.ok) lastEvents = evPayload.events || [];
+
     render(payload);
-    if (payload.ok) renderLeaderboard(payload.agents, payload.now);
+    if (payload.ok) renderLeaderboard(payload.agents, payload.now, lastEvents);
 
     const logPayload = await lRes.json();
     if (logPayload.ok) renderTicker(logPayload.messages);
 
-    const evPayload = await eRes.json();
     if (evPayload.ok) renderMetrics(evPayload);
   } catch (e) {
     document.getElementById('bus').innerHTML = '<span class="err">server unreachable — is server.mjs running?</span>';
@@ -830,7 +848,7 @@ idlesel.addEventListener('change', () => {
   localStorage.setItem('guildHideIdle', idlesel.value);
   sfxBlip(0);
   // re-render instantly from the last scan — no need to hit the bus again
-  if (lastPayload) { render(lastPayload); renderLeaderboard(lastPayload.agents, lastPayload.now); }
+  if (lastPayload) { render(lastPayload); renderLeaderboard(lastPayload.agents, lastPayload.now, lastEvents); }
 });
 
 const sfxBtn = document.getElementById('sfx');
