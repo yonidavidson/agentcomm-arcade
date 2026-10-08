@@ -75,12 +75,12 @@ console.log(`[guild] using CLI: ${CLI.label}`);
 // busy bus. The timeout has to outlive that, not just a daemon round-trip.
 const CLI_TIMEOUT_MS = Number(process.env.AGENTCOMM_TIMEOUT_MS) || 120_000;
 
-function execRaw(args) {
+function execRaw(args, timeoutMs = CLI_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     execFile(
       CLI.file,
       [...CLI.prefix, ...args],
-      { timeout: CLI_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024 },
+      { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err && !stdout) return reject(new Error(stderr || err.message));
         resolve(stdout);
@@ -115,11 +115,23 @@ const getLog = () => cached('log', 20_000, () => runCli(['log', 'lobby', '--json
 // prints a JSON array (`[]` when the bus has no telemetry opted in). An older
 // CLI has no `events` command: it prints nothing to stdout, so we report the
 // lane as unsupported instead of erroring. Always resolves — never throws.
+// The lane is secondary to the roster, so it gets a SHORT timeout: a hung
+// `events` call must degrade the score feed, not stall the whole board. On
+// timeout/error we serve the last good result (marked `stale`) if we have one.
+const EVENTS_TIMEOUT_MS = Number(process.env.AGENTCOMM_EVENTS_TIMEOUT_MS) || 20_000;
+let lastGoodEvents = null;
 async function getEventsRaw() {
-  const out = (await execRaw(['events', '--json', '--limit', '300']).catch(() => '')).trim();
+  let out;
+  try {
+    out = (await execRaw(['events', '--json', '--limit', '300'], EVENTS_TIMEOUT_MS)).trim();
+  } catch {
+    // timed out or failed — the CLI supports the lane, it just didn't answer
+    return lastGoodEvents ? { ...lastGoodEvents, stale: true } : { supported: true, events: [], unavailable: true };
+  }
   if (out.startsWith('[')) {
     try {
-      return { supported: true, events: JSON.parse(out) };
+      lastGoodEvents = { supported: true, events: JSON.parse(out) };
+      return lastGoodEvents;
     } catch {
       /* malformed — treat as unavailable */
     }

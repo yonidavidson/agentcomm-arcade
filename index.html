@@ -722,6 +722,13 @@ function renderMetrics(payload){
     return;
   }
 
+  if (payload.unavailable){   // CLI supports events but didn't answer in time — not "no telemetry"
+    stats.innerHTML = '';
+    document.getElementById('metaevt').textContent = '–';
+    feed.innerHTML = `<div class="feedempty">telemetry feed didn't answer in time — retrying next scan</div>`;
+    return;
+  }
+
   const events = (payload.events || []).slice();
   // newest → oldest for display
   events.sort((a,b) => new Date(b.ts) - new Date(a.ts));
@@ -803,22 +810,19 @@ async function scan(){
   const cd = document.getElementById('countdown');
   cd.classList.add('blink');
   try {
-    const [aRes, lRes, eRes] = await Promise.all([
-      fetch('/api/agents', { cache:'no-store' }),
-      fetch('/api/log', { cache:'no-store' }),
-      fetch('/api/events', { cache:'no-store' }),
-    ]);
-    const payload = await aRes.json();
-    const evPayload = await eRes.json();
-    if (evPayload.ok) lastEvents = evPayload.events || [];
-
-    render(payload);
-    if (payload.ok) renderLeaderboard(payload.agents, payload.now, lastEvents);
-
-    const logPayload = await lRes.json();
-    if (logPayload.ok) renderTicker(logPayload.messages);
-
-    if (evPayload.ok) renderMetrics(evPayload);
+    // Each panel loads independently: a slow or failing endpoint (events can
+    // hang on a busy bus) must not keep the roster from painting.
+    const getJson = (url) => fetch(url, { cache:'no-store' }).then(r => r.json());
+    const roster = getJson('/api/agents').then(payload => {
+      render(payload);
+      if (payload.ok) renderLeaderboard(payload.agents, payload.now);
+    });
+    const ticker = getJson('/api/log').then(p => { if (p.ok) renderTicker(p.messages); })
+      .catch(() => {});
+    const metrics = getJson('/api/events').then(p => { if (p.ok) renderMetrics(p); })
+      .catch(() => {});
+    await roster;               // only the roster decides "server unreachable"
+    await Promise.allSettled([ticker, metrics]);
   } catch (e) {
     document.getElementById('bus').innerHTML = '<span class="err">server unreachable — is server.mjs running?</span>';
   } finally {
